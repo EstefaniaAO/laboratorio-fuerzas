@@ -25,6 +25,7 @@ import {
   applyGalaxy,
   applyEnergyRays,
   applyAdhesionForce,
+  applyWavePulse,
   applyDrag,
   applySphereBoundary
 } from './forces.js';
@@ -36,7 +37,7 @@ export function createSimulation({ renderer, scene, params, count = 131072 }) {
   const positionBuffer = instancedArray(count, 'vec3');
   const velocityBuffer = instancedArray(count, 'vec3');
 
-  // INICIALIZACIÓN DENTRO DE LA ESFERA --------------------------------------
+  // INICIALIZACIÓN DENTRO DE LA ESFERA INVISIBLE ----------------------------
   const initParticles = Fn(() => {
     const i = instanceIndex;
     const p = positionBuffer.element(i);
@@ -104,7 +105,10 @@ export function createSimulation({ renderer, scene, params, count = 131072 }) {
     // 7. Fuerza de adhesión a la superficie de la esfera
     force.addAssign(applyAdhesionForce(p, params));
 
-    // 8. Amortiguación (Drag)
+    // 8. Onda de choque disparada (no desactiva la fuerza activa)
+    force.addAssign(applyWavePulse(p, params));
+
+    // 9. Amortiguación (Drag)
     force.addAssign(applyDrag(v, params));
 
     // INTEGRACIÓN SEMI-IMPLÍCITA DE EULER -----------------------------------
@@ -118,7 +122,7 @@ export function createSimulation({ renderer, scene, params, count = 131072 }) {
 
     p.addAssign(v.mul(dt));
 
-    // LÍMITE FÍSICO Y ADHESIÓN A LA ESFERA ----------------------------------
+    // LÍMITE FÍSICO ESTRICTO DE LA ESFERA (INVISIBLE) -----------------------
     applySphereBoundary(p, v, params);
   })().compute(count).setName('Update Particles Modular');
 
@@ -146,18 +150,6 @@ export function createSimulation({ renderer, scene, params, count = 131072 }) {
   mesh.frustumCulled = false;
   scene.add(mesh);
 
-  // GUÍA VISUAL DEL LÍMITE ESFÉRICO -----------------------------------------
-  const sphereBoundaryMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(params.sphereRadius.value, 36, 24),
-    new THREE.MeshBasicMaterial({
-      color: '#3a7bd5',
-      wireframe: true,
-      transparent: true,
-      opacity: 0.1
-    })
-  );
-  scene.add(sphereBoundaryMesh);
-
   function reset() {
     renderer.compute(initParticles);
   }
@@ -166,27 +158,16 @@ export function createSimulation({ renderer, scene, params, count = 131072 }) {
     renderer.compute(updateParticles);
   }
 
-  function updateBoundaryHelper(radius) {
-    if (sphereBoundaryMesh) {
-      sphereBoundaryMesh.scale.setScalar(radius / 4.8);
-    }
-  }
-
   function dispose() {
     geometry.dispose();
     material.dispose();
-    sphereBoundaryMesh.geometry.dispose();
-    sphereBoundaryMesh.material.dispose();
     scene.remove(mesh);
-    scene.remove(sphereBoundaryMesh);
   }
 
   return {
     count,
     positionBuffer,
     velocityBuffer,
-    sphereBoundaryMesh,
-    updateBoundaryHelper,
     reset,
     stepSimulation,
     dispose

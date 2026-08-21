@@ -19,10 +19,10 @@ async function main() {
 
   // MODELO THREE.JS: Escena + Cámara + Renderizador WebGPU -----------------
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color('#040507');
+  scene.background = new THREE.Color('#030406');
 
   const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.05, 100);
-  camera.position.set(0, 0, 12);
+  camera.position.set(0, 0, 12.5);
 
   const renderer = new THREE.WebGPURenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -37,17 +37,14 @@ async function main() {
   const params = createParameters();
   const simulation = createSimulation({ renderer, scene, params, count: PARTICLE_COUNT });
 
-  // AYUDANTES VISUALES DE LABORATORIO ---------------------------------------
+  // AYUDANTE DEL ATRACTOR (Cursor Dinámico) ----------------------------------
   const attractorHelper = new THREE.Mesh(
-    new THREE.SphereGeometry(0.14, 20, 16),
-    new THREE.MeshBasicMaterial({ color: '#00f7ff', wireframe: false })
+    new THREE.SphereGeometry(0.12, 16, 16),
+    new THREE.MeshBasicMaterial({ color: '#00f7ff', transparent: true, opacity: 0.85 })
   );
   scene.add(attractorHelper);
 
-  const axes = new THREE.AxesHelper(1.8);
-  scene.add(axes);
-
-  // SEGUIMIENTO DEL CURSOR (CENTRO DINÁMICO) --------------------------------
+  // SEGUIMIENTO LIBRE DEL CURSOR (Centro Dinámico sin restricciones) -------
   const pointerNdc = new THREE.Vector2();
   const raycaster = new THREE.Raycaster();
   const interactionPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
@@ -59,13 +56,22 @@ async function main() {
     raycaster.setFromCamera(pointerNdc, camera);
 
     if (raycaster.ray.intersectPlane(interactionPlane, hit)) {
-      // Clampear el centro de atracción dentro del radio de la esfera
-      const maxDist = params.sphereRadius.value * 0.95;
-      if (hit.length() > maxDist) {
-        hit.normalize().multiplyScalar(maxDist);
-      }
+      // El cursor se mueve 100% libremente por el espacio
       params.attractor.value.copy(hit);
       attractorHelper.position.copy(hit);
+    }
+  });
+
+  // DISPARADOR DE ONDA DE CHOQUE -------------------------------------------
+  const triggerWave = () => {
+    params.waveTime.value = params.time.value;
+    params.waveOrigin.value.copy(params.attractor.value);
+  };
+
+  // Disparar onda al hacer clic sobre el canvas (si no es sobre el panel)
+  renderer.domElement.addEventListener('pointerdown', (event) => {
+    if (event.button === 0 && !event.target.closest('.panel')) {
+      triggerWave();
     }
   });
 
@@ -73,16 +79,44 @@ async function main() {
   let mode = 'LAB';
   let panel;
 
-  // FUNCIÓN INERCIA (Desactiva fuerzas externas sin reiniciar partículas) ----
-  const applyInertia = () => {
+  // CONMUTACIÓN EXCLUSIVA DE FUERZAS ---------------------------------------
+  const selectForce = (forceKey, enable = true) => {
+    // Al presionar una nueva fuerza se desactiva la anterior
     params.windEnabled.value = 0;
     params.attractEnabled.value = 0;
     params.repelEnabled.value = 0;
     params.vortexEnabled.value = 0;
-    params.adhesionEnabled.value = 0;
     params.energyRaysEnabled.value = 0;
     params.galaxyEnabled.value = 0;
     params.radialEnabled.value = 0;
+
+    if (enable) {
+      switch (forceKey) {
+        case 'wind':
+          params.windEnabled.value = 1;
+          break;
+        case 'attract':
+          params.attractEnabled.value = 1;
+          params.radialEnabled.value = 1;
+          break;
+        case 'repel':
+          params.repelEnabled.value = 1;
+          break;
+        case 'vortex':
+          params.vortexEnabled.value = 1;
+          break;
+        case 'rays':
+          params.energyRaysEnabled.value = 1;
+          break;
+        case 'galaxy':
+          params.galaxyEnabled.value = 1;
+          break;
+        case 'inertia':
+          // Todas en 0
+          break;
+      }
+    }
+
     panel?.refresh();
     updateHud();
   };
@@ -91,11 +125,7 @@ async function main() {
     mode = next;
     const lab = mode === 'LAB';
     panel.setVisible(lab);
-    axes.visible = lab;
     attractorHelper.visible = lab;
-    if (simulation.sphereBoundaryMesh) {
-      simulation.sphereBoundaryMesh.visible = lab;
-    }
     updateHud();
   };
 
@@ -112,7 +142,7 @@ async function main() {
       case 5: return '5 · Plasma Fantasma';
       case 6: return '6 · Arcoíris (Centro)';
       case 7: return '7 · Cambio Continuo';
-      case 8: return '8 · Ondas de Color';
+      case 8: return '8 · Ondas Continuas';
       case 9: return '9 · Cambio Atmosférico Lento';
       case 10: return '0 · Ritmo 130 BPM';
       default: return 'Personalizado';
@@ -125,9 +155,9 @@ async function main() {
     if (params.attractEnabled.value > 0) active.push('Atracción');
     if (params.repelEnabled.value > 0) active.push('Repulsión');
     if (params.vortexEnabled.value > 0) active.push('Vórtice');
-    if (params.adhesionEnabled.value > 0) active.push('Adhesión Esfera');
-    if (params.energyRaysEnabled.value > 0) active.push('Rayos Energía');
+    if (params.energyRaysEnabled.value > 0) active.push('Rayos de Energía');
     if (params.galaxyEnabled.value > 0) active.push('Galaxia');
+    if (params.adhesionEnabled.value > 0) active.push('+ Adhesión Esfera');
     if (active.length === 0) active.push('Inercia pura');
     return active.join(', ');
   };
@@ -135,15 +165,15 @@ async function main() {
   const updateHud = () => {
     if (mode === 'LAB') {
       hud.innerHTML = `
-        <strong>LABORATORIO</strong> · <strong>P</strong>: rendimiento · <strong>R</strong>: reset · <strong>Espacio</strong>: pausar<br/>
-        <strong>Color</strong>: ${getColorName(params.colorMode.value)} (Teclas 1–5 degradados, 6–0 visuales)<br/>
-        <strong>Fuerzas activas</strong>: ${getActiveForcesList()}<br/>
-        <small style="opacity:0.8">Teclas: <strong>I</strong> Inercia · <strong>X</strong> Viento · <strong>A</strong> Atracción · <strong>D</strong> Repulsión · <strong>V</strong> Vórtice · <strong>F</strong> Adhesión · <strong>E</strong> Rayos · <strong>G</strong> Galaxia</small>
+        <strong>LABORATORIO</strong> · <strong>P</strong>: rendimiento · <strong>R</strong>: reset · <strong>O / Clic</strong>: disparar onda<br/>
+        <strong>Color</strong>: ${getColorName(params.colorMode.value)} (1–5 degradados, 6–0 visuales)<br/>
+        <strong>Fuerza activa</strong>: ${getActiveForcesList()}<br/>
+        <small style="opacity:0.8">Fuerzas: <strong>I</strong> Inercia · <strong>X</strong> Viento · <strong>A</strong> Atracción · <strong>D</strong> Repulsión · <strong>V</strong> Vórtice · <strong>E</strong> Rayos · <strong>G</strong> Galaxia · <strong>F</strong> Adhesión</small>
       `;
     } else {
       hud.innerHTML = `
-        <strong>PERFORMANCE</strong> · <strong>P</strong>: panel · <strong>R</strong>: reset<br/>
-        <strong>Color</strong>: ${getColorName(params.colorMode.value)} · <strong>Fuerzas</strong>: ${getActiveForcesList()}
+        <strong>PERFORMANCE</strong> · <strong>P</strong>: panel · <strong>R</strong>: reset · <strong>O / Clic</strong>: onda<br/>
+        <strong>Color</strong>: ${getColorName(params.colorMode.value)} · <strong>Fuerza</strong>: ${getActiveForcesList()}
       `;
     }
   };
@@ -155,10 +185,11 @@ async function main() {
       params.colorMode.value = m;
       updateHud();
     },
-    onInertia: applyInertia,
+    onSelectForce: selectForce,
+    onTriggerWave: triggerWave,
+    onInertia: () => selectForce('inertia', true),
     onModeChange: () => setMode(mode === 'LAB' ? 'PERFORMANCE' : 'LAB'),
-    onPauseChange: () => (paused = !paused),
-    onRadiusChange: (r) => simulation.updateBoundaryHelper(r)
+    onPauseChange: () => (paused = !paused)
   });
 
   setMode('LAB');
@@ -181,6 +212,11 @@ async function main() {
       paused = !paused;
       return;
     }
+    // Disparar Onda Expansiva (Tecla O o W)
+    if (event.code === 'KeyO') {
+      triggerWave();
+      return;
+    }
 
     // 1–5: DEGRADADOS DE COLOR POR DISTANCIA AL CURSOR
     if (event.code === 'Digit1') params.colorMode.value = 1.0;
@@ -196,32 +232,21 @@ async function main() {
     if (event.code === 'Digit9') params.colorMode.value = 9.0;
     if (event.code === 'Digit0') params.colorMode.value = 10.0;
 
-    // TECLAS DE FUERZAS INDEPENDIENTES (Activar/Desactivar)
-    if (event.code === 'KeyI') {
-      applyInertia();
-      return;
-    }
-    if (event.code === 'KeyX') {
-      params.windEnabled.value = params.windEnabled.value > 0 ? 0 : 1;
-    }
-    if (event.code === 'KeyA') {
-      params.attractEnabled.value = params.attractEnabled.value > 0 ? 0 : 1;
-      params.radialEnabled.value = params.attractEnabled.value;
-    }
-    if (event.code === 'KeyD') {
-      params.repelEnabled.value = params.repelEnabled.value > 0 ? 0 : 1;
-    }
-    if (event.code === 'KeyV') {
-      params.vortexEnabled.value = params.vortexEnabled.value > 0 ? 0 : 1;
-    }
+    // TECLAS DE FUERZAS CON CONMUTACIÓN EXCLUSIVA
+    if (event.code === 'KeyI') selectForce('inertia', true);
+    if (event.code === 'KeyX') selectForce('wind', params.windEnabled.value === 0);
+    if (event.code === 'KeyA') selectForce('attract', params.attractEnabled.value === 0);
+    if (event.code === 'KeyD') selectForce('repel', params.repelEnabled.value === 0);
+    if (event.code === 'KeyV') selectForce('vortex', params.vortexEnabled.value === 0);
+    if (event.code === 'KeyE') selectForce('rays', params.energyRaysEnabled.value === 0);
+    if (event.code === 'KeyG') selectForce('galaxy', params.galaxyEnabled.value === 0);
+
+    // Adhesión a la esfera (Toggle combinable)
     if (event.code === 'KeyF') {
       params.adhesionEnabled.value = params.adhesionEnabled.value > 0 ? 0 : 1;
-    }
-    if (event.code === 'KeyE') {
-      params.energyRaysEnabled.value = params.energyRaysEnabled.value > 0 ? 0 : 1;
-    }
-    if (event.code === 'KeyG') {
-      params.galaxyEnabled.value = params.galaxyEnabled.value > 0 ? 0 : 1;
+      panel?.refresh();
+      updateHud();
+      return;
     }
 
     panel?.refresh();

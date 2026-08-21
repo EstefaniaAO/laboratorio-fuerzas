@@ -90,7 +90,7 @@ export const applyGalaxy = Fn(([p, toAttractor, distance, radialDir, params]) =>
   // Modulación de brazos espirales (densidad y compresión angular)
   const relX = p.x.sub(params.attractor.x);
   const relY = p.y.sub(params.attractor.y);
-  const theta = atan(relY, relX); // ángulo polar
+  const theta = atan(relY, relX);
   const spiralArmAngle = theta.sub(distance.sqrt().mul(2.2)).sub(params.time.mul(params.galaxySpin.mul(0.4)));
   const armWave = sin(spiralArmAngle.mul(params.galaxyArms));
 
@@ -161,14 +161,40 @@ export const applyEnergyRays = Fn(([p, toAttractor, distance, radialDir, instanc
 export const applyAdhesionForce = Fn(([p, params]) => {
   const dist = max(p.length(), float(0.001));
   const normal = p.div(dist);
-  // Si está dentro de la esfera, empuja hacia la superficie r = sphereRadius
   const surfaceOffset = params.sphereRadius.sub(dist);
   const adhesion = normal.mul(surfaceOffset).mul(params.adhesionStrength.mul(1.8));
   return adhesion.mul(params.adhesionEnabled);
 });
 
 /**
- * 8. AMORTIGUACIÓN (Drag)
+ * 8. ONDA DE CHOQUE DISPARABLE (Sin desactivar la fuerza activa)
+ * Onda expansiva que viaja radialmente desde el punto de origen de la onda
+ * empujando y acelerando temporalmente a las partículas a su paso.
+ */
+export const applyWavePulse = Fn(([p, params]) => {
+  const waveAge = params.time.sub(params.waveTime);
+  const waveForce = vec3(0.0).toVar();
+
+  If(waveAge.greaterThan(0.0).and(waveAge.lessThan(2.5)), () => {
+    const waveRadius = waveAge.mul(params.waveSpeed);
+    const toOrigin = p.sub(params.waveOrigin);
+    const distOrigin = max(toOrigin.length(), float(0.001));
+    const distDiff = abs(distOrigin.sub(waveRadius));
+
+    // Intensidad según cercanía a la cresta de la onda
+    const waveIntensity = clamp(float(1.0).sub(distDiff.div(params.waveWidth)), float(0.0), float(1.0));
+    // Decaimiento con el tiempo transcurrido
+    const decay = clamp(float(1.0).sub(waveAge.div(2.5)), float(0.0), float(1.0));
+
+    const radialDir = toOrigin.div(distOrigin);
+    waveForce.assign(radialDir.mul(waveIntensity.mul(params.waveStrength.mul(decay).mul(12.0))));
+  });
+
+  return waveForce;
+});
+
+/**
+ * 9. AMORTIGUACIÓN (Drag)
  * Resistencia al avance proporcional a la velocidad: F = -c * v
  */
 export const applyDrag = Fn(([v, params]) => {
@@ -176,33 +202,34 @@ export const applyDrag = Fn(([v, params]) => {
 });
 
 /**
- * 9. RESTRICCIÓN Y LÍMITE FÍSICO DE LA ESFERA
- * Garantiza que ninguna partícula escape del radio de la esfera:
+ * 10. RESTRICCIÓN Y LÍMITE FÍSICO ESTRICTO DE LA ESFERA
+ * Función JS directa que emite instrucciones al grafo de computación.
+ * Garantiza que absolutamente ninguna partícula salga de la esfera:
  * - Confinamiento estricto en posición: |p| <= sphereRadius
  * - Corrección de velocidad: elimina la componente normal hacia afuera.
  * - Si la adhesión está activada, proyecta la velocidad exactamente al plano tangencial.
  */
-export const applySphereBoundary = Fn(([p, v, params]) => {
+export function applySphereBoundary(p, v, params) {
   const dist = p.length();
   const radius = params.sphereRadius;
 
-  If(dist.greaterThan(radius.mul(0.999)), () => {
-    // Normal de la superficie esférica
+  If(dist.greaterThan(radius), () => {
+    // Normal unitaria de la superficie esférica
     const normal = p.normalize();
-    // Clamping de la posición en la superficie
-    p.assign(normal.mul(radius));
+    // Clamping estricto e infranqueable de la posición dentro de la superficie
+    p.assign(normal.mul(radius.mul(0.998)));
 
-    // Componente normal de la velocidad
+    // Componente normal de la velocidad (v . n)
     const vDotN = v.dot(normal);
 
     If(params.adhesionEnabled.greaterThan(0.0), () => {
-      // Adhesión: anula totalmente la componente radial para que se deslice sobre la superficie
+      // Adhesión: anula totalmente la componente radial normal para que deslice suavemente sobre la superficie
       v.subAssign(normal.mul(vDotN));
     }).Else(() => {
-      // Sin adhesión: si la partícula se mueve hacia afuera, se anula la salida y rebota suavemente
+      // Sin adhesión: si la partícula se mueve hacia afuera, se invierte/frena la componente normal
       If(vDotN.greaterThan(0.0), () => {
-        v.subAssign(normal.mul(vDotN.mul(1.2)));
+        v.subAssign(normal.mul(vDotN.mul(1.6)));
       });
     });
   });
-});
+}

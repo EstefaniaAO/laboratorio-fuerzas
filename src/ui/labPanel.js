@@ -71,7 +71,8 @@ export function createLabPanel({
   onColorModeChange,
   onModeChange,
   onPauseChange,
-  onRadiusChange,
+  onSelectForce,
+  onTriggerWave,
   onInertia
 }) {
   const refreshers = [];
@@ -79,10 +80,10 @@ export function createLabPanel({
   panel.className = 'panel';
   panel.innerHTML = `
     <h1>Laboratorio de Fuerzas</h1>
-    <p>Simulación esférica interactiva. Usa el cursor para interactuar con el centro dinámico.</p>
+    <p>Simulación esférica. El cursor se mueve libremente por el espacio.</p>
   `;
 
-  // 1. CONFIGURACIÓN DEL CONTENEDOR ESFÉRICO & SIMULACIÓN
+  // 1. CONFIGURACIÓN DEL CONTENEDOR & SIMULACIÓN
   const sim = document.createElement('div');
   sim.className = 'group';
   sim.innerHTML = '<h2>Contenedor & Simulación</h2>';
@@ -110,16 +111,13 @@ export function createLabPanel({
   refreshers.push(
     rangeRow(
       sim,
-      'Radio de la Esfera',
+      'Radio Límite Esfera',
       state,
       'sphereRadius',
       2.0,
       10.0,
       0.1,
-      (v) => {
-        params.sphereRadius.value = v;
-        onRadiusChange?.(v);
-      },
+      (v) => (params.sphereRadius.value = v),
       () => params.sphereRadius.value
     )
   );
@@ -134,10 +132,17 @@ export function createLabPanel({
     rangeRow(sim, 'Tamaño de Partículas', state, 'particleSize', 0.01, 0.1, 0.002, (v) => (params.particleSize.value = v), () => params.particleSize.value)
   );
 
-  // 2. FUERZAS FÍSICAS INDIVIDUALES
+  // 2. DISPARADOR DE ONDA DE ENERGÍA
+  const waveGroup = document.createElement('div');
+  waveGroup.className = 'group';
+  waveGroup.innerHTML = '<h2>Onda Expansiva</h2><p>Dispara una onda que recorre las partículas sin desactivar la fuerza activa.</p>';
+  panel.append(waveGroup);
+  button(waveGroup, '🌊 Disparar Onda de Energía (Tecla O / Click)', () => onTriggerWave?.(), 'btn-primary');
+
+  // 3. FUERZAS FÍSICAS (Conmutación Exclusiva)
   const forcesGroup = document.createElement('div');
   forcesGroup.className = 'group';
-  forcesGroup.innerHTML = '<h2>Fuerzas Físicas (Mapeo Teclado)</h2>';
+  forcesGroup.innerHTML = '<h2>Fuerzas Físicas (Conmutación)</h2><p>Al pulsar una fuerza se activa y desactiva la anterior.</p>';
   panel.append(forcesGroup);
 
   // Inercia
@@ -149,7 +154,7 @@ export function createLabPanel({
       forcesGroup,
       'X · Fuerza Constante +X (Viento)',
       params.windEnabled.value > 0,
-      (v) => (params.windEnabled.value = v ? 1 : 0),
+      (v) => onSelectForce ? onSelectForce('wind', v) : (params.windEnabled.value = v ? 1 : 0),
       () => params.windEnabled.value > 0
     )
   );
@@ -163,7 +168,7 @@ export function createLabPanel({
       forcesGroup,
       'A · Atracción hacia el Cursor',
       params.attractEnabled.value > 0,
-      (v) => (params.attractEnabled.value = v ? 1 : 0),
+      (v) => onSelectForce ? onSelectForce('attract', v) : (params.attractEnabled.value = v ? 1 : 0),
       () => params.attractEnabled.value > 0
     )
   );
@@ -177,7 +182,7 @@ export function createLabPanel({
       forcesGroup,
       'D · Repulsión desde el Cursor',
       params.repelEnabled.value > 0,
-      (v) => (params.repelEnabled.value = v ? 1 : 0),
+      (v) => onSelectForce ? onSelectForce('repel', v) : (params.repelEnabled.value = v ? 1 : 0),
       () => params.repelEnabled.value > 0
     )
   );
@@ -191,7 +196,7 @@ export function createLabPanel({
       forcesGroup,
       'V · Vórtice alrededor del Cursor',
       params.vortexEnabled.value > 0,
-      (v) => (params.vortexEnabled.value = v ? 1 : 0),
+      (v) => onSelectForce ? onSelectForce('vortex', v) : (params.vortexEnabled.value = v ? 1 : 0),
       () => params.vortexEnabled.value > 0
     )
   );
@@ -219,7 +224,7 @@ export function createLabPanel({
       forcesGroup,
       'E · Rayos de Energía (Plasma hacia Cursor)',
       params.energyRaysEnabled.value > 0,
-      (v) => (params.energyRaysEnabled.value = v ? 1 : 0),
+      (v) => onSelectForce ? onSelectForce('rays', v) : (params.energyRaysEnabled.value = v ? 1 : 0),
       () => params.energyRaysEnabled.value > 0
     )
   );
@@ -239,7 +244,7 @@ export function createLabPanel({
       forcesGroup,
       'G · Galaxia Espiral',
       params.galaxyEnabled.value > 0,
-      (v) => (params.galaxyEnabled.value = v ? 1 : 0),
+      (v) => onSelectForce ? onSelectForce('galaxy', v) : (params.galaxyEnabled.value = v ? 1 : 0),
       () => params.galaxyEnabled.value > 0
     )
   );
@@ -267,34 +272,34 @@ export function createLabPanel({
     rangeRow(forcesGroup, 'Coeficiente Drag', state, 'dragCoefficient', 0.0, 0.5, 0.01, (v) => (params.dragCoefficient.value = v), () => params.dragCoefficient.value)
   );
 
-  // 3. TECLAS 1–5: DEGRADADOS DE COLOR POR DISTANCIA AL CURSOR
+  // 4. TECLAS 1–5: DEGRADADOS DE COLOR POR DISTANCIA AL CURSOR
   const colorGroup = document.createElement('div');
   colorGroup.className = 'group';
-  colorGroup.innerHTML = '<h2>Degradados de Color (Teclas 1–5)</h2><p>Color interpolado según distancia al cursor.</p>';
+  colorGroup.innerHTML = '<h2>Degradados Luminosos (Teclas 1–5)</h2><p>Color según distancia al cursor.</p>';
   panel.append(colorGroup);
 
   const gradientButtons = [
     { mode: 1, label: '1 · Neón Cyberpunk (Cian ➔ Violeta)' },
-    { mode: 2, label: '2 · Fuego Solar (Oro ➔ Carmesí)' },
-    { mode: 3, label: '3 · Aurora Esmeralda (Menta ➔ Teal)' },
-    { mode: 4, label: '4 · Nebulosa Cósmica (Fucsia ➔ Índigo)' },
-    { mode: 5, label: '5 · Plasma Fantasma (Blanco ➔ Cobalto)' }
+    { mode: 2, label: '2 · Fuego Solar (Oro ➔ Coral Cálido)' },
+    { mode: 3, label: '3 · Aurora Esmeralda (Menta ➔ Celeste)' },
+    { mode: 4, label: '4 · Nebulosa Cósmica (Fucsia ➔ Lila)' },
+    { mode: 5, label: '5 · Plasma Fantasma (Blanco ➔ Zafiro)' }
   ];
 
   gradientButtons.forEach(({ mode, label }) => {
     button(colorGroup, label, () => onColorModeChange?.(mode), 'btn-palette');
   });
 
-  // 4. TECLAS 6–0: MODOS VISUALES DINÁMICOS
+  // 5. TECLAS 6–0: MODOS VISUALES PROCEDIMENTALES
   const visualGroup = document.createElement('div');
   visualGroup.className = 'group';
-  visualGroup.innerHTML = '<h2>Modos Visuales (Teclas 6–0)</h2><p>Efectos de animación y sincronía de tempo.</p>';
+  visualGroup.innerHTML = '<h2>Modos Visuales (Teclas 6–0)</h2><p>Efectos dinámicos y tempo musical.</p>';
   panel.append(visualGroup);
 
   const visualButtons = [
     { mode: 6, label: '6 · Arcoíris desde el Centro' },
     { mode: 7, label: '7 · Cambio Constante Suave' },
-    { mode: 8, label: '8 · Ondas de Color Concéntricas' },
+    { mode: 8, label: '8 · Ondas Continuas de Color' },
     { mode: 9, label: '9 · Cambio Atmosférico Lento' },
     { mode: 10, label: '0 · Ritmo Rápido / 130 BPM' }
   ];
@@ -303,7 +308,7 @@ export function createLabPanel({
     button(visualGroup, label, () => onColorModeChange?.(mode), 'btn-mode');
   });
 
-  // 5. ACCIONES PRINCIPALES
+  // 6. ACCIONES PRINCIPALES
   const actions = document.createElement('div');
   actions.className = 'group';
   actions.innerHTML = '<h2>Acciones</h2>';
