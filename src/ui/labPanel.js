@@ -73,7 +73,8 @@ export function createLabPanel({
   onPauseChange,
   onSelectForce,
   onTriggerWave,
-  onInertia
+  onInertia,
+  onToggleHud
 }) {
   const refreshers = [];
   const panel = document.createElement('aside');
@@ -86,7 +87,7 @@ export function createLabPanel({
   // 1. CONFIGURACIÓN DEL CONTENEDOR & SIMULACIÓN
   const sim = document.createElement('div');
   sim.className = 'group';
-  sim.innerHTML = '<h2>Contenedor & Simulación</h2>';
+  sim.innerHTML = '<h2>Contenedor & Simulación (Radio Base 10)</h2>';
   panel.append(sim);
 
   const state = {
@@ -105,31 +106,40 @@ export function createLabPanel({
     galaxyStrength: params.galaxyStrength.value,
     galaxySpin: params.galaxySpin.value,
     galaxyArms: params.galaxyArms.value,
+    networkStrength: params.networkStrength.value,
+    networkScale: params.networkScale.value,
+    orbitStrength: params.orbitStrength.value,
+    orbitSpeed: params.orbitSpeed.value,
+    swarmSpeed: params.swarmSpeed.value,
+    swarmRepel: params.swarmRepel.value,
+    ribbonSpeed: params.ribbonSpeed.value,
+    ribbonStrength: params.ribbonStrength.value,
+    ribbonWidth: params.ribbonWidth.value,
     dragCoefficient: params.dragCoefficient.value
   };
 
   refreshers.push(
     rangeRow(
       sim,
-      'Radio Límite Esfera',
+      'Radio de la Esfera',
       state,
       'sphereRadius',
-      2.0,
-      10.0,
-      0.1,
+      3.0,
+      25.0,
+      0.5,
       (v) => (params.sphereRadius.value = v),
       () => params.sphereRadius.value
     )
   );
 
   refreshers.push(
-    rangeRow(sim, 'Velocidad Máxima', state, 'maxSpeed', 0.5, 15.0, 0.1, (v) => (params.maxSpeed.value = v), () => params.maxSpeed.value)
+    rangeRow(sim, 'Velocidad Máxima', state, 'maxSpeed', 0.5, 20.0, 0.2, (v) => (params.maxSpeed.value = v), () => params.maxSpeed.value)
   );
   refreshers.push(
     rangeRow(sim, 'Escala de Tiempo', state, 'timeScale', 0.0, 2.0, 0.05, (v) => (params.timeScale.value = v), () => params.timeScale.value)
   );
   refreshers.push(
-    rangeRow(sim, 'Tamaño de Partículas', state, 'particleSize', 0.01, 0.1, 0.002, (v) => (params.particleSize.value = v), () => params.particleSize.value)
+    rangeRow(sim, 'Tamaño de Partículas', state, 'particleSize', 0.01, 0.12, 0.002, (v) => (params.particleSize.value = v), () => params.particleSize.value)
   );
 
   // 2. DISPARADOR DE ONDA DE ENERGÍA
@@ -137,7 +147,7 @@ export function createLabPanel({
   waveGroup.className = 'group';
   waveGroup.innerHTML = '<h2>Onda Expansiva</h2><p>Dispara una onda que recorre las partículas sin desactivar la fuerza activa.</p>';
   panel.append(waveGroup);
-  button(waveGroup, '🌊 Disparar Onda de Energía (Tecla O / Click)', () => onTriggerWave?.(), 'btn-primary');
+  button(waveGroup, '🌊 Disparar Onda de Energía (Tecla O / Clic)', () => onTriggerWave?.(), 'btn-primary');
 
   // 3. FUERZAS FÍSICAS (Conmutación Exclusiva)
   const forcesGroup = document.createElement('div');
@@ -147,6 +157,77 @@ export function createLabPanel({
 
   // Inercia
   button(forcesGroup, 'I · Inercia (Desactivar fuerzas externas)', () => onInertia?.(), 'btn-subtle');
+
+  // 🧬 Filamento / Red
+  refreshers.push(
+    checkRow(
+      forcesGroup,
+      'N · 🧬 Filamento / Red Neuronal',
+      params.networkEnabled.value > 0,
+      (v) => onSelectForce ? onSelectForce('network', v) : (params.networkEnabled.value = v ? 1 : 0),
+      () => params.networkEnabled.value > 0
+    )
+  );
+  refreshers.push(
+    rangeRow(forcesGroup, 'Intensidad Red', state, 'networkStrength', 0.5, 10.0, 0.1, (v) => (params.networkStrength.value = v), () => params.networkStrength.value)
+  );
+  refreshers.push(
+    rangeRow(forcesGroup, 'Escala / Densidad Red', state, 'networkScale', 0.5, 6.0, 0.1, (v) => (params.networkScale.value = v), () => params.networkScale.value)
+  );
+
+  // 🪐 Órbitas Múltiples
+  refreshers.push(
+    checkRow(
+      forcesGroup,
+      'M · 🪐 Órbitas Múltiples',
+      params.multiOrbitEnabled.value > 0,
+      (v) => onSelectForce ? onSelectForce('orbits', v) : (params.multiOrbitEnabled.value = v ? 1 : 0),
+      () => params.multiOrbitEnabled.value > 0
+    )
+  );
+  refreshers.push(
+    rangeRow(forcesGroup, 'Atracción Órbitas', state, 'orbitStrength', 0.5, 10.0, 0.1, (v) => (params.orbitStrength.value = v), () => params.orbitStrength.value)
+  );
+  refreshers.push(
+    rangeRow(forcesGroup, 'Velocidad Órbitas', state, 'orbitSpeed', 0.2, 4.0, 0.1, (v) => (params.orbitSpeed.value = v), () => params.orbitSpeed.value)
+  );
+
+  // 🧲 Enjambre
+  refreshers.push(
+    checkRow(
+      forcesGroup,
+      'S · 🧲 Enjambre (Flocking + Evasión Cursor)',
+      params.swarmEnabled.value > 0,
+      (v) => onSelectForce ? onSelectForce('swarm', v) : (params.swarmEnabled.value = v ? 1 : 0),
+      () => params.swarmEnabled.value > 0
+    )
+  );
+  refreshers.push(
+    rangeRow(forcesGroup, 'Velocidad Enjambre', state, 'swarmSpeed', 0.5, 10.0, 0.1, (v) => (params.swarmSpeed.value = v), () => params.swarmSpeed.value)
+  );
+  refreshers.push(
+    rangeRow(forcesGroup, 'Evasión al Cursor', state, 'swarmRepel', 0.5, 12.0, 0.1, (v) => (params.swarmRepel.value = v), () => params.swarmRepel.value)
+  );
+
+  // 🌀 Cinta
+  refreshers.push(
+    checkRow(
+      forcesGroup,
+      'C · 🌀 Cinta / Serpiente Cósmica',
+      params.ribbonEnabled.value > 0,
+      (v) => onSelectForce ? onSelectForce('ribbon', v) : (params.ribbonEnabled.value = v ? 1 : 0),
+      () => params.ribbonEnabled.value > 0
+    )
+  );
+  refreshers.push(
+    rangeRow(forcesGroup, 'Atracción a Cinta', state, 'ribbonStrength', 0.5, 10.0, 0.1, (v) => (params.ribbonStrength.value = v), () => params.ribbonStrength.value)
+  );
+  refreshers.push(
+    rangeRow(forcesGroup, 'Velocidad Flujo Cinta', state, 'ribbonSpeed', 0.5, 10.0, 0.1, (v) => (params.ribbonSpeed.value = v), () => params.ribbonSpeed.value)
+  );
+  refreshers.push(
+    rangeRow(forcesGroup, 'Ancho Ondulación Cinta', state, 'ribbonWidth', 0.2, 5.0, 0.1, (v) => (params.ribbonWidth.value = v), () => params.ribbonWidth.value)
+  );
 
   // Viento +X
   refreshers.push(
@@ -204,25 +285,11 @@ export function createLabPanel({
     rangeRow(forcesGroup, 'Giro Vórtice', state, 'vortexStrength', -8.0, 8.0, 0.1, (v) => (params.vortexStrength.value = v), () => params.vortexStrength.value)
   );
 
-  // Adhesión a la Esfera
-  refreshers.push(
-    checkRow(
-      forcesGroup,
-      'F · Adhesión a la Superficie Esférica',
-      params.adhesionEnabled.value > 0,
-      (v) => (params.adhesionEnabled.value = v ? 1 : 0),
-      () => params.adhesionEnabled.value > 0
-    )
-  );
-  refreshers.push(
-    rangeRow(forcesGroup, 'Intensidad Adhesión', state, 'adhesionStrength', 0.5, 10.0, 0.1, (v) => (params.adhesionStrength.value = v), () => params.adhesionStrength.value)
-  );
-
   // Rayos de Energía
   refreshers.push(
     checkRow(
       forcesGroup,
-      'E · Rayos de Energía (Plasma hacia Cursor)',
+      'E · Rayos de Energía (Plasma)',
       params.energyRaysEnabled.value > 0,
       (v) => onSelectForce ? onSelectForce('rays', v) : (params.energyRaysEnabled.value = v ? 1 : 0),
       () => params.energyRaysEnabled.value > 0
@@ -230,12 +297,6 @@ export function createLabPanel({
   );
   refreshers.push(
     rangeRow(forcesGroup, 'Fuerza Rayos', state, 'rayStrength', 0.5, 10.0, 0.1, (v) => (params.rayStrength.value = v), () => params.rayStrength.value)
-  );
-  refreshers.push(
-    rangeRow(forcesGroup, 'Cantidad Rayos', state, 'rayCount', 2.0, 16.0, 1.0, (v) => (params.rayCount.value = v), () => params.rayCount.value)
-  );
-  refreshers.push(
-    rangeRow(forcesGroup, 'Turbulencia / Relámpago', state, 'rayTurbulence', 0.0, 4.0, 0.1, (v) => (params.rayTurbulence.value = v), () => params.rayTurbulence.value)
   );
 
   // Galaxia Espiral
@@ -252,10 +313,21 @@ export function createLabPanel({
     rangeRow(forcesGroup, 'Atracción Galaxia', state, 'galaxyStrength', 0.5, 8.0, 0.1, (v) => (params.galaxyStrength.value = v), () => params.galaxyStrength.value)
   );
   refreshers.push(
-    rangeRow(forcesGroup, 'Velocidad de Giro Galaxia', state, 'galaxySpin', 0.5, 8.0, 0.1, (v) => (params.galaxySpin.value = v), () => params.galaxySpin.value)
+    rangeRow(forcesGroup, 'Velocidad Giro Galaxia', state, 'galaxySpin', 0.5, 8.0, 0.1, (v) => (params.galaxySpin.value = v), () => params.galaxySpin.value)
+  );
+
+  // Adhesión a la Esfera
+  refreshers.push(
+    checkRow(
+      forcesGroup,
+      'F · Adhesión a la Superficie Esférica',
+      params.adhesionEnabled.value > 0,
+      (v) => (params.adhesionEnabled.value = v ? 1 : 0),
+      () => params.adhesionEnabled.value > 0
+    )
   );
   refreshers.push(
-    rangeRow(forcesGroup, 'Brazos Espirales', state, 'galaxyArms', 1.0, 6.0, 1.0, (v) => (params.galaxyArms.value = v), () => params.galaxyArms.value)
+    rangeRow(forcesGroup, 'Intensidad Adhesión', state, 'adhesionStrength', 0.5, 12.0, 0.1, (v) => (params.adhesionStrength.value = v), () => params.adhesionStrength.value)
   );
 
   // Drag / Amortiguación
@@ -316,6 +388,7 @@ export function createLabPanel({
   button(actions, 'Reset Simulación (R)', onReset, 'btn-primary');
   button(actions, 'Pausar / Continuar (Espacio)', () => onPauseChange());
   button(actions, 'LAB / PERFORMANCE (P)', () => onModeChange());
+  button(actions, 'Ocultar / Mostrar HUD (H)', () => onToggleHud?.(), 'btn-subtle');
 
   document.body.append(panel);
 

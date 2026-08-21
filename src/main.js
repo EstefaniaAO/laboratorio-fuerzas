@@ -21,8 +21,9 @@ async function main() {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#030406');
 
-  const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.05, 100);
-  camera.position.set(0, 0, 12.5);
+  // Encuadre ajustado para radio de esfera base = 10.0
+  const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.05, 120);
+  camera.position.set(0, 0, 24);
 
   const renderer = new THREE.WebGPURenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -39,12 +40,12 @@ async function main() {
 
   // AYUDANTE DEL ATRACTOR (Cursor Dinámico) ----------------------------------
   const attractorHelper = new THREE.Mesh(
-    new THREE.SphereGeometry(0.12, 16, 16),
+    new THREE.SphereGeometry(0.18, 16, 16),
     new THREE.MeshBasicMaterial({ color: '#00f7ff', transparent: true, opacity: 0.85 })
   );
   scene.add(attractorHelper);
 
-  // SEGUIMIENTO LIBRE DEL CURSOR (Centro Dinámico sin restricciones) -------
+  // SEGUIMIENTO LIBRE DEL CURSOR -------------------------------------------
   const pointerNdc = new THREE.Vector2();
   const raycaster = new THREE.Raycaster();
   const interactionPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
@@ -56,7 +57,6 @@ async function main() {
     raycaster.setFromCamera(pointerNdc, camera);
 
     if (raycaster.ray.intersectPlane(interactionPlane, hit)) {
-      // El cursor se mueve 100% libremente por el espacio
       params.attractor.value.copy(hit);
       attractorHelper.position.copy(hit);
     }
@@ -68,15 +68,16 @@ async function main() {
     params.waveOrigin.value.copy(params.attractor.value);
   };
 
-  // Disparar onda al hacer clic sobre el canvas (si no es sobre el panel)
+  // Disparar onda al hacer clic sobre el canvas (si no es sobre el panel o HUD)
   renderer.domElement.addEventListener('pointerdown', (event) => {
-    if (event.button === 0 && !event.target.closest('.panel')) {
+    if (event.button === 0 && !event.target.closest('.panel') && !event.target.closest('.hud')) {
       triggerWave();
     }
   });
 
   let paused = false;
   let mode = 'LAB';
+  let hudVisible = true;
   let panel;
 
   // CONMUTACIÓN EXCLUSIVA DE FUERZAS ---------------------------------------
@@ -88,10 +89,26 @@ async function main() {
     params.vortexEnabled.value = 0;
     params.energyRaysEnabled.value = 0;
     params.galaxyEnabled.value = 0;
+    params.networkEnabled.value = 0;
+    params.multiOrbitEnabled.value = 0;
+    params.swarmEnabled.value = 0;
+    params.ribbonEnabled.value = 0;
     params.radialEnabled.value = 0;
 
     if (enable) {
       switch (forceKey) {
+        case 'network':
+          params.networkEnabled.value = 1;
+          break;
+        case 'orbits':
+          params.multiOrbitEnabled.value = 1;
+          break;
+        case 'swarm':
+          params.swarmEnabled.value = 1;
+          break;
+        case 'ribbon':
+          params.ribbonEnabled.value = 1;
+          break;
         case 'wind':
           params.windEnabled.value = 1;
           break;
@@ -112,13 +129,17 @@ async function main() {
           params.galaxyEnabled.value = 1;
           break;
         case 'inertia':
-          // Todas en 0
           break;
       }
     }
 
     panel?.refresh();
     updateHud();
+  };
+
+  const toggleHud = () => {
+    hudVisible = !hudVisible;
+    hud.classList.toggle('hidden-hud', !hudVisible);
   };
 
   const setMode = (next) => {
@@ -131,6 +152,8 @@ async function main() {
 
   const hud = document.createElement('div');
   hud.className = 'hud';
+  hud.title = 'Haz clic o presiona H para ocultar/mostrar';
+  hud.addEventListener('click', toggleHud);
   document.body.append(hud);
 
   const getColorName = (m) => {
@@ -151,6 +174,10 @@ async function main() {
 
   const getActiveForcesList = () => {
     const active = [];
+    if (params.networkEnabled.value > 0) active.push('🧬 Filamento / Red');
+    if (params.multiOrbitEnabled.value > 0) active.push('🪐 Órbitas Múltiples');
+    if (params.swarmEnabled.value > 0) active.push('🧲 Enjambre');
+    if (params.ribbonEnabled.value > 0) active.push('🌀 Cinta');
     if (params.windEnabled.value > 0) active.push('Viento (+X)');
     if (params.attractEnabled.value > 0) active.push('Atracción');
     if (params.repelEnabled.value > 0) active.push('Repulsión');
@@ -165,14 +192,14 @@ async function main() {
   const updateHud = () => {
     if (mode === 'LAB') {
       hud.innerHTML = `
-        <strong>LABORATORIO</strong> · <strong>P</strong>: rendimiento · <strong>R</strong>: reset · <strong>O / Clic</strong>: disparar onda<br/>
+        <strong>LABORATORIO</strong> · <strong>P</strong>: rendimiento · <strong>H</strong>: ocultar HUD · <strong>R</strong>: reset · <strong>O / Clic</strong>: onda<br/>
         <strong>Color</strong>: ${getColorName(params.colorMode.value)} (1–5 degradados, 6–0 visuales)<br/>
         <strong>Fuerza activa</strong>: ${getActiveForcesList()}<br/>
-        <small style="opacity:0.8">Fuerzas: <strong>I</strong> Inercia · <strong>X</strong> Viento · <strong>A</strong> Atracción · <strong>D</strong> Repulsión · <strong>V</strong> Vórtice · <strong>E</strong> Rayos · <strong>G</strong> Galaxia · <strong>F</strong> Adhesión</small>
+        <small style="opacity:0.85">Teclas: <strong>N</strong> Red · <strong>M</strong> Órbitas · <strong>S</strong> Enjambre · <strong>C</strong> Cinta · <strong>A</strong> Atracción · <strong>D</strong> Repulsión · <strong>V</strong> Vórtice · <strong>E</strong> Rayos · <strong>G</strong> Galaxia · <strong>X</strong> Viento · <strong>I</strong> Inercia · <strong>F</strong> Adhesión</small>
       `;
     } else {
       hud.innerHTML = `
-        <strong>PERFORMANCE</strong> · <strong>P</strong>: panel · <strong>R</strong>: reset · <strong>O / Clic</strong>: onda<br/>
+        <strong>PERFORMANCE</strong> · <strong>P</strong>: panel · <strong>H</strong>: ocultar HUD · <strong>R</strong>: reset · <strong>O / Clic</strong>: onda<br/>
         <strong>Color</strong>: ${getColorName(params.colorMode.value)} · <strong>Fuerza</strong>: ${getActiveForcesList()}
       `;
     }
@@ -189,6 +216,7 @@ async function main() {
     onTriggerWave: triggerWave,
     onInertia: () => selectForce('inertia', true),
     onModeChange: () => setMode(mode === 'LAB' ? 'PERFORMANCE' : 'LAB'),
+    onToggleHud: toggleHud,
     onPauseChange: () => (paused = !paused)
   });
 
@@ -198,7 +226,7 @@ async function main() {
   addEventListener('keydown', (event) => {
     if (event.repeat) return;
 
-    // Reset y Modos
+    // Reset, Modo y HUD
     if (event.code === 'KeyR') {
       simulation.reset();
       return;
@@ -207,12 +235,16 @@ async function main() {
       setMode(mode === 'LAB' ? 'PERFORMANCE' : 'LAB');
       return;
     }
+    if (event.code === 'KeyH') {
+      toggleHud();
+      return;
+    }
     if (event.code === 'Space') {
       event.preventDefault();
       paused = !paused;
       return;
     }
-    // Disparar Onda Expansiva (Tecla O o W)
+    // Disparar Onda Expansiva (Tecla O)
     if (event.code === 'KeyO') {
       triggerWave();
       return;
@@ -232,7 +264,13 @@ async function main() {
     if (event.code === 'Digit9') params.colorMode.value = 9.0;
     if (event.code === 'Digit0') params.colorMode.value = 10.0;
 
-    // TECLAS DE FUERZAS CON CONMUTACIÓN EXCLUSIVA
+    // 🧬 🪐 🧲 🌀 NUEVAS FUERZAS CON CONMUTACIÓN EXCLUSIVA
+    if (event.code === 'KeyN') selectForce('network', params.networkEnabled.value === 0);
+    if (event.code === 'KeyM') selectForce('orbits', params.multiOrbitEnabled.value === 0);
+    if (event.code === 'KeyS') selectForce('swarm', params.swarmEnabled.value === 0);
+    if (event.code === 'KeyC') selectForce('ribbon', params.ribbonEnabled.value === 0);
+
+    // FUERZAS EXISTENTES CON CONMUTACIÓN EXCLUSIVA
     if (event.code === 'KeyI') selectForce('inertia', true);
     if (event.code === 'KeyX') selectForce('wind', params.windEnabled.value === 0);
     if (event.code === 'KeyA') selectForce('attract', params.attractEnabled.value === 0);
@@ -241,7 +279,7 @@ async function main() {
     if (event.code === 'KeyE') selectForce('rays', params.energyRaysEnabled.value === 0);
     if (event.code === 'KeyG') selectForce('galaxy', params.galaxyEnabled.value === 0);
 
-    // Adhesión a la esfera (Toggle combinable)
+    // Adhesión a la esfera (Toggle complementario)
     if (event.code === 'KeyF') {
       params.adhesionEnabled.value = params.adhesionEnabled.value > 0 ? 0 : 1;
       panel?.refresh();
@@ -259,7 +297,7 @@ async function main() {
     renderer.setSize(innerWidth, innerHeight);
   });
 
-  // Inicializar partículas en la esfera
+  // Inicializar partículas dentro de la esfera
   simulation.reset();
 
   // BUCLE DE ANIMACIÓN Y RENDERIZADO ----------------------------------------
@@ -271,7 +309,6 @@ async function main() {
     lastTime = now;
 
     if (!paused) {
-      // Actualizar tiempo acumulado para los shaders
       params.time.value += delta * params.timeScale.value;
       simulation.stepSimulation();
     }

@@ -24,6 +24,10 @@ import {
   applyVortex,
   applyGalaxy,
   applyEnergyRays,
+  applyNetworkFilaments,
+  applyMultiOrbits,
+  applySwarm,
+  applyRibbon,
   applyAdhesionForce,
   applyWavePulse,
   applyDrag,
@@ -37,7 +41,7 @@ export function createSimulation({ renderer, scene, params, count = 131072 }) {
   const positionBuffer = instancedArray(count, 'vec3');
   const velocityBuffer = instancedArray(count, 'vec3');
 
-  // INICIALIZACIÓN DENTRO DE LA ESFERA INVISIBLE ----------------------------
+  // INICIALIZACIÓN DENTRO DE LA ESFERA (RADIO BASE 10.0) ---------------------
   const initParticles = Fn(() => {
     const i = instanceIndex;
     const p = positionBuffer.element(i);
@@ -59,7 +63,7 @@ export function createSimulation({ renderer, scene, params, count = 131072 }) {
     const dirNorm = dir.div(dirLen);
 
     // Distribución volumétrica uniforme en la esfera: r = R * u^(1/3)
-    const radFactor = pow(max(r4, float(0.0001)), float(1.0 / 3.0)).mul(0.96);
+    const radFactor = pow(max(r4, float(0.0001)), float(1.0 / 3.0)).mul(0.95);
     const radius = params.sphereRadius.mul(radFactor);
 
     p.assign(dirNorm.mul(radius));
@@ -102,13 +106,25 @@ export function createSimulation({ renderer, scene, params, count = 131072 }) {
     // 6. Rayos de energía hacia el cursor
     force.addAssign(applyEnergyRays(p, toAttractor, distance, radialDir, i, params));
 
-    // 7. Fuerza de adhesión a la superficie de la esfera
+    // 7. 🧬 Fuerza de Filamento / Red Neuronal
+    force.addAssign(applyNetworkFilaments(p, toAttractor, distance, params));
+
+    // 8. 🪐 Fuerza de Órbitas Múltiples
+    force.addAssign(applyMultiOrbits(p, params));
+
+    // 9. 🧲 Fuerza de Enjambre (Flocking + Evasión Cursor)
+    force.addAssign(applySwarm(p, v, toAttractor, distance, params));
+
+    // 10. 🌀 Fuerza de Cinta / Serpiente Cósmica
+    force.addAssign(applyRibbon(p, params));
+
+    // 11. Fuerza de adhesión a la superficie de la esfera
     force.addAssign(applyAdhesionForce(p, params));
 
-    // 8. Onda de choque disparada (no desactiva la fuerza activa)
+    // 12. Onda de choque disparada (no desactiva la fuerza activa)
     force.addAssign(applyWavePulse(p, params));
 
-    // 9. Amortiguación (Drag)
+    // 13. Amortiguación (Drag)
     force.addAssign(applyDrag(v, params));
 
     // INTEGRACIÓN SEMI-IMPLÍCITA DE EULER -----------------------------------
