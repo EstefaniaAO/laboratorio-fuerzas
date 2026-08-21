@@ -1,90 +1,71 @@
-# U3 · Forces Instrument
+# Laboratorio de Fuerzas · Sistema de Partículas Esférico
 
-[App desplegada](https://juanferfranco.github.io/forces-instrument-u3/)
+Simulación física interactiva de partículas contenida dentro de una esfera 3D, impulsada por compute shaders en **Three.js WebGPU / TSL (Three Shading Language)**.
 
+---
 
-Proyecto base que servirá como caso de estudio. Nos permitirá abordar los conceptos 
-necesarios para comprender el código generado por la IA al momente 
-de materializar las ideas.
+## 🚀 Puesta en Funcionamiento
 
+1. **Instalar dependencias**:
+   ```bash
+   npm install
+   ```
 
-## Requisitos
+2. **Iniciar servidor de desarrollo**:
+   ```bash
+   npm run dev
+   ```
 
-- Node.js 22 recomendado (Vite 8 requiere Node 20.19+ o 22.12+).
-- Navegador con WebGPU habilitado; usa una versión actual de Chrome, Edge o un navegador con soporte equivalente.
-- Git necesario para clonar el repositorio y trabajar localmente.
+3. **Compilar para producción**:
+   ```bash
+   npm run build
+   ```
 
-## Clonar y poner en funcionamiento
+> **Requisito**: Navegador moderno compatible con WebGPU (Chrome, Edge u homólogos).
 
-Clona el repositorio y entra en la carpeta del proyecto:
+---
 
-```bash
-git clone https://github.com/juanferfranco/forces-instrument-u3.git
-cd forces-instrument-u3
-```
+## 🎮 Controles y Mapeo de Teclado
 
-Instala las dependencias:
+### 🎨 Paletas de Degradado (Teclas 1–5)
+*Controlan el degradado de color de las partículas en función de su distancia euclídea al cursor (cerca ➔ lejos). No afectan la física.*
 
-```bash
-npm install
-```
+- **`1`**: Neón Cyberpunk *(Cian brillante ➔ Violeta profundo)*
+- **`2`**: Fuego Solar *(Blanco-oro cálido ➔ Carmesí solar)*
+- **`3`**: Aurora Esmeralda *(Menta neón ➔ Teal medianoche)*
+- **`4`**: Nebulosa Cósmica *(Fucsia radiante ➔ Índigo cósmico)*
+- **`5`**: Plasma Fantasma *(Blanco hielo diamante ➔ Azul cobalto)*
 
-Inicia el servidor de desarrollo:
+### ✨ Modos Visuales Procedimentales (Teclas 6–0)
+- **`6`**: **Arcoíris desde el Centro** — Ondas espectrales concéntricas propagándose desde el cursor hacia el exterior.
+- **`7`**: **Cambio Constante** — Transición cromática suave y cíclica a lo largo de todo el espectro HSV.
+- **`8`**: **Ondas de Color** — Ondas de choque de energía concéntricas con crestas luminosas.
+- **`9`**: **Cambio Atmosférico Lento** — Evolución tonal etérea y gradual durante varios segundos.
+- **`0`**: **Ritmo Rápido (130 BPM)** — Pulsos y acordes cromáticos calculados y sincronizados exactamente a 130 BPM ($1\text{ beat} = 60 / 130\text{ s}$).
 
-```bash
-npm run dev
-```
+### ⚡ Fuerzas Físicas Modulares (Teclas Independientes)
+- **`I`**: **Inercia** — Desactiva fuerzas direccionales externas manteniendo el movimiento natural y la contención esférica.
+- **`X`**: **Fuerza Constante +X (Viento)** — Aceleración continua hacia el eje X positivo.
+- **`A`**: **Atracción** — Fuerza gravitatoria radial hacia la posición 3D del cursor.
+- **`D`**: **Repulsión** — Campo de repulsión radial alejando las partículas del cursor.
+- **`V`**: **Vórtice** — Remolino tangencial alrededor del cursor.
+- **`F`**: **Adhesión a la Esfera** — Mantiene a las partículas adheridas a la superficie de la esfera, deslizándose tangencialmente sin rebotar ni escapar.
+- **`E`**: **Rayos de Energía** — Filamentos de plasma eléctrico con oscilaciones y turbulencias orgánicas convergiendo hacia el cursor.
+- **`G`**: **Galaxia Espiral** — Brazos espirales con atracción gravitatoria y velocidad orbital independiente.
 
-Abre en el navegador la URL local que muestra Vite. Se necesita un navegador con WebGPU habilitado.
+### ⚙️ Controles Generales
+- **`R`**: **Reset** — Reinicia las posiciones y velocidades dentro de la esfera sin alterar la configuración de fuerzas o color.
+- **`P`**: **Modo LAB / PERFORMANCE** — Alterna la visualización del panel de control y guías de depuración.
+- **`Espacio`**: **Pausar / Continuar** — Detiene o reanuda el avance de la simulación.
+- **Puntero del Ratón**: Mueve el **centro dinámico de interacción** (atractor) en el espacio tridimensional dentro del radio de la esfera.
 
-## Ejecutar
+---
 
-```bash
-npm install
-npm run dev
-```
+## 📂 Arquitectura Modular
 
-Abre la URL que imprime Vite.
-
-## Build de producción
-
-```bash
-npm run build
-npm run preview
-```
-
-`preview` sirve el contenido construido en `dist/`; úsalo antes de publicar.
-
-## Controles
-
-- `P`: LAB / PERFORMANCE.
-- `R`: reset.
-- `1..5`: escenarios de exploración.
-- puntero: mueve el atractor sobre el plano Z=0.
-- espacio (PERFORMANCE): invierte temporalmente el signo de la fuerza radial.
-
-## Publicar en GitHub Pages
-
-El repositorio ya incluye `.github/workflows/deploy.yml`.
-
-1. Crea un repositorio en GitHub y sube estos archivos a la rama `main`.
-2. En **Settings → Pages**, selecciona **GitHub Actions** como fuente.
-3. Haz push a `main`.
-4. El workflow ejecutará `npm install`, build y despliegue.
-
-`vite.config.js` usa `base: './'` para que los assets sean relativos y el mismo build funcione bajo una ruta de proyecto de GitHub Pages.
-
-## Archivos que debes entender primero
-
-1. `src/main.js`: escena, cámara, renderer, loop, interacción y modos.
-2. `src/simulation/parameters.js`: parámetros/uniforms accesibles desde CPU.
-3. `src/simulation/createSimulation.js`: estado GPU, fuerzas, integración y render.
-4. `src/ui/labPanel.js`: controles del laboratorio y escenarios de exploración.
-
-Lee la `GUIA_ESTUDIANTE.md` para comprender la estructura del proyecto y 
-cómo se relacionan los archivos.
-
-## Documentación complementaria
-
-- [Guía del estudiante](GUIA_ESTUDIANTE.md)
-- [Validación y depuración](PRUEBAS_Y_DEPURACION.md)
+- [`src/simulation/forces.js`](file:///c:/Users/user/Documents/Scripting/laboratorio-fuerzas/src/simulation/forces.js): Módulos TSL independientes para cada fuerza física y la restricción de límites esféricos (`applySphereBoundary`).
+- [`src/simulation/colorModes.js`](file:///c:/Users/user/Documents/Scripting/laboratorio-fuerzas/src/simulation/colorModes.js): Sombreador TSL para degradados por distancia al cursor (1–5) y modos visuales (6–0 con 130 BPM).
+- [`src/simulation/parameters.js`](file:///c:/Users/user/Documents/Scripting/laboratorio-fuerzas/src/simulation/parameters.js): Uniformes de la GPU incluyendo el radio de la esfera (`sphereRadius`), parámetros de cada fuerza y modos de color.
+- [`src/simulation/createSimulation.js`](file:///c:/Users/user/Documents/Scripting/laboratorio-fuerzas/src/simulation/createSimulation.js): Distribución volumétrica esférica inicial, pipeline de compute shaders y SpriteNodeMaterial.
+- [`src/ui/labPanel.js`](file:///c:/Users/user/Documents/Scripting/laboratorio-fuerzas/src/ui/labPanel.js): Panel interactivo con sliders y switches para cada fuerza, radio de esfera y botones de color/modo.
+- [`src/main.js`](file:///c:/Users/user/Documents/Scripting/laboratorio-fuerzas/src/main.js): Bucle de simulación con paso de tiempo real, seguimiento 3D del cursor y control por teclado.
